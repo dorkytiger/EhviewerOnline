@@ -1,0 +1,73 @@
+# Compose setup for ehviewer-webd.
+#
+# Two things here are not obvious and both will bite if ignored:
+#
+#  1. `user:` — the container must be able to READ the synced files. The
+#     distroless image runs as uid 65532, but a Syncthing-managed tree is
+#     usually owned by your own uid with mode 0640 or 0600. Without matching
+#     the uid, the service starts, finds nothing, and reports an empty library.
+#     Set EHW_UID/EHW_GID to your own ids (`id -u`, `id -g`).
+#
+#  2. The sync mount is `:ro`. This is not decoration: it is a kernel-level
+#     guarantee that the service cannot write into the tree that Syncthing
+#     manages, on top of the application never trying to.
+#
+#   EHW_SYNC_DIR=/srv/ehviewer-sync/EhViewer \
+#   EHW_UID=$(id -u) EHW_GID=$(id -g) \
+#   docker compose up -d
+
+services:
+  ehviewer-webd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ehviewer-webd:latest
+    container_name: ehviewer-webd
+
+    # Match the owner of the synced files so they are readable.
+    user: "${EHW_UID:-1000}:${EHW_GID:-1000}"
+
+    restart: unless-stopped
+
+    # Bound to loopback on the host by default: the frp client runs on the same
+    # host and connects to 127.0.0.1:8080. Change to "8080:8080" only if the
+    # tunnel reaches this from another host.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      # The synced EhViewer directory. Read-only, deliberately.
+      - "/Users/warren/EhTest:/sync:ro"
+      # Config: mount a single file so the image stays generic.
+      - "./deploy/config.json:/etc/ehviewer-webd/config.json:ro"
+      # Token: keep it out of the image and out of the config file.
+      - "./deploy/token:/etc/ehviewer-webd/token:ro"
+      # Index, thumbnail cache and session key. Named volume, so it is not
+      # inside the synced tree.
+      - ehw-data:/var/lib/ehviewer-webd
+
+    environment:
+      # Only meaningful for the JSON logger; the service reads its options from
+      # the config file.
+      TZ: "${TZ:-Asia/Shanghai}"
+
+    # Read-only root filesystem: the only writable path is the named volume.
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    # No new privileges, drop everything, and the process needs no capabilities
+    # at all (it only reads files and listens on a high port).
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ehw-data:

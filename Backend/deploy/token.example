@@ -1,0 +1,10 @@
+# Place the access token here, then mount it read-only:
+#
+#   cp deploy/token.example deploy/token
+#   openssl rand -base64 32 > deploy/token
+#   chmod 600 deploy/token
+#
+# Keep it out of the config file so the config can be committed, and never bake
+# it into the image.
+#
+# The service only needs this file readable by the container user.

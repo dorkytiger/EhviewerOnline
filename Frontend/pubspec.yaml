@@ -1,0 +1,52 @@
+name: ehviewer_online
+description: "Read-only web and mobile client for a synced EhViewer library."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # UI kit. forui 0.26 pulls its own material_ui / cupertino_ui packages and
+  # does not depend on flutter/material.
+  forui: ^0.26.0
+
+  # Material, declared directly because the app host uses it.
+  #
+  # Since Flutter 3.44 Material lives in this package rather than in the SDK,
+  # and forui 0.26 is built against it. That makes it a *different* ThemeData
+  # from package:flutter/material.dart's — passing one to the other's
+  # MaterialApp is a type error. Using material_ui for MaterialApp.router is
+  # what lets FThemeData.toApproximateMaterialTheme() be the single source of
+  # the theme instead of two brand definitions that can drift apart.
+  material_ui: ^1.0.0
+
+  # State. Riverpod 3 keeps the provider API but moves Notifier/AsyncNotifier
+  # into the core package.
+  flutter_riverpod: ^3.4.3
+
+  # HTTP. dio is used rather than package:http because the API is small and
+  # consistent (interceptors for the session cookie, typed errors, cancellation).
+  dio: ^5.11.1
+
+  # Routing, so the web build has addressable URLs.
+  go_router: ^18.0.1
+
+  # Session cookie persistence on native platforms. On web the browser owns
+  # cookies and this is unused.
+  shared_preferences: ^2.5.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # A real HTTP server in-process, for contract tests against the client.
+  http: ^1.5.0
+
+flutter:
+  uses-material-design: true

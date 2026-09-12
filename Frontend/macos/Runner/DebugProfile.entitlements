@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- Outgoing connections. The sandbox refuses every socket the app opens
+	     without this, including to 127.0.0.1, and dio surfaces it as a generic
+	     connection failure rather than a permission error. network.server
+	     (above) only covers listening, which is what the debug VM service
+	     needs; the two are not interchangeable. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

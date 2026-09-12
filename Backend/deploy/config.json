@@ -1,0 +1,55 @@
+{
+  // Container paths. The host-side mapping lives in docker-compose.yml.
+  "listen": "0.0.0.0:8080",
+  "data_dir": "/var/lib/ehviewer-webd",
+
+  "sync": {
+    "roots": ["/sync"],
+    "download_dirs": ["download"],
+    "db_dirs": ["data"],
+    "db_policy": "latest",
+    "watch": true,
+    "watch_debounce": "2s",
+    "skip_symlinks": true,
+    "max_galleries": 500000
+  },
+
+  "auth": {
+    "mode": "token",
+    "token_file": "/etc/ehviewer-webd/token",
+    "session_ttl": "720h",
+    // The frp tunnel terminates TLS in front of this, so the browser sees
+    // HTTPS and the cookie must be marked Secure. Set false only for a plain
+    // HTTP test on loopback.
+    "secure_cookies": true
+  },
+
+  "proxy": {
+    // The frp client and reverse proxy are the only things that should reach
+    // this. Docker's bridge network is 172.16.0.0/12; widen as needed (for
+    // example add the host's docker0 address) if the client-IP detection
+    // misbehaves. See the design doc F4.
+    "trusted_proxies": ["172.16.0.0/12", "127.0.0.1/32"],
+    "client_ip_header": "X-Forwarded-For"
+  },
+
+  "limits": {
+    "read_header_timeout": "10s",
+    "read_timeout": "60s",
+    // Images travel over the tunnel; 60s is not enough for a large page.
+    "write_timeout": "5m",
+    "idle_timeout": "120s"
+  },
+
+  "thumb": {
+    "enabled": true,
+    "max_dim": 480,
+    "quality": 82,
+    "workers": 2
+  },
+
+  "logging": {
+    "level": "info",
+    "format": "text"
+  }
+}

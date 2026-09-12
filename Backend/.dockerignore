@@ -1,0 +1,24 @@
+# Build context exclusions.
+#
+# The synced tree is never in the build context (it is mounted at runtime), but
+# excluding these keeps the context small and prevents an accidental
+# `COPY . .` from pulling local test data or a real token into the image.
+
+.git
+.gitignore
+*.md
+!README.md
+
+# Local test data and scratch state
+.e2e
+.e2e-run
+*.db
+
+# Real secrets must never enter the image
+deploy/token
+
+# Editor and OS noise
+.idea
+.vscode
+*.swp
+.DS_Store

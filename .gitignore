@@ -1,0 +1,33 @@
+# 仓库根忽略规则。
+#
+# Frontend/ 自带 .gitignore（Flutter 模板一份 + 各平台目录各一份，已覆盖 build/、
+# .dart_tool/、Pods/、Flutter/ephemeral/ 等），所以这里**不重复**那些规则，
+# 只补「两边都需要」和「Backend 缺失」的部分。
+
+# --- 密钥与本地配置：绝不提交 ---
+#
+# 真实访问令牌。deploy/token.example 是模板，要提交；deploy/token 不能。
+# 一旦提交，任何能看到仓库的人都能登进图库（frp 一开就是全网可达），而且
+# 光洗历史不够——被抓取过的历史删不干净，必须换令牌。
+Backend/deploy/token
+
+# 本地部署参数：同步目录、uid/gid 都是本机专属，对别人没有意义。
+Backend/.env
+
+# 将来可能出现的环境文件（前端工具链、CI 本地覆盖等）。
+.env
+.env.local
+.env.*.local
+
+# --- 操作系统 ---
+.DS_Store
+Thumbs.db
+
+# --- 编辑器 ---
+# 注：.vscode/ 不忽略——Flutter 模板有意保留它，共享 launch 配置是有用的。
+.idea/
+*.iml
+
+# --- 后端构建产物 ---
+# 镜像构建在容器里做（CGO_ENABLED=0 静态二进制），本地产物不该入库。
+Backend/ehviewer-webd
