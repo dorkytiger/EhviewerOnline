@@ -1,6 +1,6 @@
 # Compose setup for ehviewer-webd.
 #
-# Two things here are not obvious and both will bite if ignored:
+# Three things here are not obvious and all will bite if ignored:
 #
 #  1. `user:` — the container must be able to READ the synced files. The
 #     distroless image runs as uid 65532, but a Syncthing-managed tree is
@@ -11,6 +11,14 @@
 #  2. The sync mount is `:ro`. This is not decoration: it is a kernel-level
 #     guarantee that the service cannot write into the tree that Syncthing
 #     manages, on top of the application never trying to.
+#
+#  3. The named volume is writable by `EHW_UID` only because the image ships its
+#     mount point as 0777 — see the `COPY --chmod=0777` note in the Dockerfile.
+#     Docker initialises a fresh volume from the image directory *including
+#     ownership*, so without that you get
+#     `open /var/lib/ehviewer-webd/session.key: permission denied`, and it cannot
+#     be repaired after the fact: the service cannot write, so the volume stays
+#     empty, and every recreation re-initialises it and undoes any chown.
 #
 #   EHW_SYNC_DIR=/srv/ehviewer-sync/EhViewer \
 #   EHW_UID=$(id -u) EHW_GID=$(id -g) \
@@ -37,7 +45,7 @@ services:
 
     volumes:
       # The synced EhViewer directory. Read-only, deliberately.
-      - "/Users/warren/EhTest:/sync:ro"
+      - "${EHW_SYNC_DIR:-/srv/ehviewer-sync/EhViewer}:/sync:ro"
       # Config: mount a single file so the image stays generic.
       - "./deploy/config.json:/etc/ehviewer-webd/config.json:ro"
       # Token: keep it out of the image and out of the config file.
