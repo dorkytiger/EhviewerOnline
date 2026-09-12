@@ -7,10 +7,12 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart' show SelectableText, ThemeMode;
 
 import '../../../../common/config/app_config.dart';
+import '../../../../common/widget/confirm_dialog.dart';
 import '../../../../common/widget/custom_error_widget.dart';
 import '../../../../common/widget/server_address_dialog.dart';
 import '../../../../core/service/local_prefs.dart';
 import '../../../../core/service/server_address.dart';
+import '../../../../core/service/thumbnail_cache.dart';
 import '../../../../core/util/format_util.dart';
 import '../../../../core/util/message_util.dart';
 import '../../../../core/util/result_util.dart';
@@ -149,6 +151,10 @@ class SettingView extends ConsumerWidget {
           ),
           SizedBox(height: AppSpacing.xl),
 
+          const _SectionTitle('存储'),
+          const _ImageCacheCard(),
+          SizedBox(height: AppSpacing.xl),
+
           const _SectionTitle('会话'),
           FButton(
             variant: FButtonVariant.destructive,
@@ -198,7 +204,7 @@ Future<void> _applyPref(
 /// 文案必须写清后果——退出后要重新输入访问令牌才能继续用，这不是一个「点错了
 /// 也没关系」的操作。
 Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-  final confirmed = await _confirm(
+  final confirmed = await confirmDialog(
     context,
     title: '退出登录',
     message: '需要重新输入访问令牌才能继续使用。',
@@ -220,83 +226,6 @@ Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
   );
 }
 
-/// 危险操作的二次确认。
-///
-/// 只有明确点「确定」才返回 true：取消、点遮罩、返回手势都算放弃。
-Future<bool> _confirm(
-  BuildContext context, {
-  required String title,
-  required String message,
-  required String confirmLabel,
-}) async {
-  final content = _ConfirmContent(
-    title: title,
-    message: message,
-    confirmLabel: confirmLabel,
-  );
-  final confirmed = await showFDialog<bool>(
-    context: context,
-    builder: (context, style, animation) => FDialog.adaptive(
-      // 内容只有一段文字和两个按钮，横竖两种布局没有区别；显式给同一份，而不是
-      // 硬造两套会走样的排版。
-      horizontalBuilder: (context, style) => content,
-      verticalBuilder: (context, style) => content,
-    ),
-  );
-  return confirmed ?? false;
-}
-
-/// 弹窗里的确认内容。
-class _ConfirmContent extends StatelessWidget {
-  const _ConfirmContent({
-    required this.title,
-    required this.message,
-    required this.confirmLabel,
-  });
-
-  final String title;
-  final String message;
-  final String confirmLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.theme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.typography.body.lg.copyWith(fontWeight: FontWeight.w600),
-        ),
-        SizedBox(height: AppSpacing.sm),
-        Text(
-          message,
-          style: theme.typography.body.sm.copyWith(
-            color: theme.colors.mutedForeground,
-          ),
-        ),
-        SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            FButton(
-              variant: FButtonVariant.outline,
-              onPress: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            SizedBox(width: AppSpacing.sm),
-            FButton(
-              variant: FButtonVariant.destructive,
-              onPress: () => Navigator.of(context).pop(true),
-              child: Text(confirmLabel),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
 
 /// 服务器地址，可点可改。
 ///
@@ -486,6 +415,119 @@ class _SectionTitle extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+/// 缩略图缓存：开关 + 占用 + 清除。
+///
+/// 占用是**异步统计**出来的（要遍历缓存目录），所以进来才第一次算、清空后重算。
+/// 没有「统计失败」这一态——`FileStore` 把 I/O 错误折叠成 0；真正需要区分的是
+/// **没有磁盘层的平台**（Web）：那里占用恒为 0，必须换一句话说，否则显示「0 B」
+/// 会让人以为缓存是空的，而实际是根本不存在。
+class _ImageCacheCard extends ConsumerStatefulWidget {
+  const _ImageCacheCard();
+
+  @override
+  ConsumerState<_ImageCacheCard> createState() => _ImageCacheCardState();
+}
+
+class _ImageCacheCardState extends ConsumerState<_ImageCacheCard> {
+  /// null = 还没统计出来。
+  int? _bytes;
+  bool _clearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _measure();
+  }
+
+  Future<void> _measure() async {
+    final bytes = await ref.read(thumbnailCacheProvider).sizeBytes();
+    if (!mounted) return;
+    setState(() => _bytes = bytes);
+  }
+
+  Future<void> _clear() async {
+    setState(() => _clearing = true);
+    final result = await ref.read(thumbnailCacheProvider).clear();
+    if (!mounted) return;
+
+    setState(() => _clearing = false);
+    await _measure();
+    if (!mounted) return;
+
+    final error = result.error;
+    showFToast(
+      context: context,
+      variant: error == null ? FToastVariant.primary : FToastVariant.destructive,
+      title: Text(error == null ? '缓存已清除' : '清除失败'),
+      description: error == null ? null : Text(messageOf(error)),
+    );
+  }
+
+  String _summary({required bool persistent, required int? bytes}) {
+    if (!persistent) return '占用不可统计：当前平台没有文件系统';
+    if (bytes == null) return '正在统计…';
+    if (bytes == 0) return '缓存为空';
+    return '当前占用 ${formatBytes(bytes)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = ref.watch(localPrefsProvider);
+    final theme = context.theme;
+    final cache = ref.watch(thumbnailCacheProvider);
+    final bytes = _bytes;
+    // 缓存为空时没有可清除的东西，禁用比点了没反应诚实。
+    final clearable = bytes != null && bytes > 0 && !_clearing;
+
+    return _PrefCard(
+      children: [
+        FTileGroup(
+          children: [
+            FTile(
+              title: const Text('缓存封面缩略图'),
+              subtitle: Text(
+                !prefs.imageCacheEnabled
+                    ? '已关闭：每次浏览都会重新下载封面'
+                    : cache.persistent
+                        ? '封面只下载一次，重启后仍命中'
+                        : '此平台没有文件系统，缓存只在本次运行内有效',
+              ),
+              suffix: FSwitch(
+                value: prefs.imageCacheEnabled,
+                onChange: (value) => _applyPref(
+                  context,
+                  () => ref
+                      .read(localPrefsProvider.notifier)
+                      .setImageCacheEnabled(value),
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _summary(persistent: cache.persistent, bytes: bytes),
+                style: theme.typography.body.sm.copyWith(
+                  color: theme.colors.mutedForeground,
+                ),
+              ),
+            ),
+            FButton(
+              variant: FButtonVariant.outline,
+              onPress: clearable ? _clear : null,
+              prefix: const Icon(FLucideIcons.trash2, size: AppIcon.sm),
+              child: Text(_clearing ? '清除中…' : '清除缓存'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -11,6 +11,7 @@ enum ReaderDirection {
   rightToLeft('从右到左', '下一页在左侧（日式）'),
   vertical('纵向滚动', '连续滚动');
 
+
   const ReaderDirection(this.label, this.description);
 
   final String label;
@@ -42,21 +43,31 @@ class LocalPrefs {
     required this.themeMode,
     required this.readerDirection,
     required this.fitMode,
+    required this.imageCacheEnabled,
   });
 
   final ThemeMode themeMode;
   final ReaderDirection readerDirection;
   final ReaderFit fitMode;
 
+  /// 是否缓存封面缩略图。
+  ///
+  /// 默认开：封面走远程时每次滚回去都重下是纯浪费，而缓存只在应用私有目录里。
+  /// 关掉后立刻生效（缓存 provider watch 了这个值），不会留一份"以为关了其实
+  /// 还在写"的缓存。
+  final bool imageCacheEnabled;
+
   LocalPrefs copyWith({
     ThemeMode? themeMode,
     ReaderDirection? readerDirection,
     ReaderFit? fitMode,
+    bool? imageCacheEnabled,
   }) {
     return LocalPrefs(
       themeMode: themeMode ?? this.themeMode,
       readerDirection: readerDirection ?? this.readerDirection,
       fitMode: fitMode ?? this.fitMode,
+      imageCacheEnabled: imageCacheEnabled ?? this.imageCacheEnabled,
     );
   }
 }
@@ -74,6 +85,7 @@ class LocalPrefsController extends Notifier<LocalPrefs> {
   static const String _themeKey = 'pref_theme_mode';
   static const String _directionKey = 'pref_reader_direction';
   static const String _fitKey = 'pref_reader_fit';
+  static const String _imageCacheKey = 'pref_image_cache';
 
   @override
   LocalPrefs build() {
@@ -82,6 +94,8 @@ class LocalPrefsController extends Notifier<LocalPrefs> {
       themeMode: _parseTheme(prefs.getString(_themeKey)),
       readerDirection: ReaderDirection.parse(prefs.getString(_directionKey)),
       fitMode: ReaderFit.parse(prefs.getString(_fitKey)),
+      // 缺省为 true：没存过值的是新装用户，缓存对他同样有用。
+      imageCacheEnabled: prefs.getBool(_imageCacheKey) ?? true,
     );
   }
 
@@ -122,6 +136,20 @@ class LocalPrefsController extends Notifier<LocalPrefs> {
     final result = await _write(_fitKey, fit.name);
     if (result.isError) return result;
     state = state.copyWith(fitMode: fit);
+    return Result.success(null);
+  }
+
+  /// 开关封面缩略图缓存。
+  ///
+  /// 关掉不会顺手删除已有缓存：那是一次带破坏性的操作，应该由用户在设置里显式
+  /// 点「清除缓存」——把「不再写入」和「删掉已写的」合成一个开关，只会让人不敢
+  /// 去碰它。
+  Future<Result<void>> setImageCacheEnabled(bool value) async {
+    final ok = await ref.read(sharedPreferencesProvider).setBool(_imageCacheKey, value);
+    if (!ok) {
+      return Result.error(const LocalStorageException(message: '偏好保存失败'));
+    }
+    state = state.copyWith(imageCacheEnabled: value);
     return Result.success(null);
   }
 }

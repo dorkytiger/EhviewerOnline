@@ -1,12 +1,27 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:ehviewer_online/core/exception/global_exception.dart';
+import 'package:ehviewer_online/core/util/result_util.dart';
+import 'package:ehviewer_online/feature/download/datasource/local/download_file_local_datasource.dart';
+import 'package:ehviewer_online/feature/download/datasource/remote/download_remote_datasource.dart';
+import 'package:ehviewer_online/feature/download/model/dto/download_page_dto.dart';
+import 'package:ehviewer_online/feature/download/model/dto/download_request_dto.dart';
+import 'package:ehviewer_online/feature/download/repository/download_repository.dart';
+import 'package:ehviewer_online/feature/download/service/download_service.dart';
+import 'package:ehviewer_online/feature/library/enum/availability.dart';
+import 'package:ehviewer_online/feature/library/enum/meta_source.dart';
+import 'package:ehviewer_online/feature/library/enum/title_source.dart';
 import 'package:ehviewer_online/feature/library/model/vo/gallery_detail_vo.dart';
 import 'package:ehviewer_online/feature/library/model/vo/gallery_vo.dart';
 import 'package:ehviewer_online/feature/library/model/vo/page_vo.dart';
 import 'package:ehviewer_online/feature/library/model/vo/spider_info_vo.dart';
-import 'package:ehviewer_online/feature/library/enum/availability.dart';
-import 'package:ehviewer_online/feature/library/enum/meta_source.dart';
-import 'package:ehviewer_online/feature/library/enum/title_source.dart';
+import 'package:ehviewer_online/feature/library/service/library_service.dart';
 import 'package:ehviewer_online/feature/reader/service/reader_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/memory_file_store.dart';
 
 /// 阅读器 service 里纯逻辑的测试。
 ///
@@ -45,6 +60,70 @@ void main() {
     });
   });
 
+  group('断网阅读', () {
+    test('服务器连不上时退到本机已下载的副本继续读', () async {
+      final store = MemoryFileStore();
+      final download = _realDownloadService(store);
+      // 先在线下载两页，再让服务器「断掉」。
+      await download.download(
+        DownloadRequestDto.fromGalleryDetail(_detail([0, 1])),
+      );
+      final reader = ReaderService(_OfflineLibraryService(), download);
+
+      final detail = await reader.detail(1000001);
+
+      expect(detail.isSuccess, isTrue, reason: '有本地副本就不该给用户一个网络错误页');
+      expect(detail.data!.gallery.title, 'Gallery');
+      expect(detail.data!.pagesDetail.length, 2);
+
+      // 页也从本机读：详情里的 URL 是空的，能取到就说明读的是本地副本。
+      final bytes = await reader.pageBytes(detail.data!, 1);
+      expect(bytes.isSuccess, isTrue);
+      expect(utf8.decode(bytes.data!), 'img:/img/1000001/1');
+    });
+
+    test('本机没有副本时如实报远程错误，不假装能读', () async {
+      final reader = ReaderService(
+        _OfflineLibraryService(),
+        _realDownloadService(MemoryFileStore()),
+      );
+
+      final detail = await reader.detail(1000001);
+
+      expect(detail.isError, isTrue);
+      expect(detail.error, isA<RemoteException>());
+    });
+  });
+
+  group('pageBytes', () {
+    test('把页的身份整份交给下载模块，阅读器自己不拼 URL、不判断本地有没有', () async {
+      final download = _RecordingDownloadService();
+      final reader = ReaderService(_UnusedLibraryService(), download);
+
+      final result = await reader.pageBytes(_detail([0, 3]), 1);
+
+      expect(result.isSuccess, isTrue);
+      expect(download.calls.length, 1);
+      expect(download.gids.single, 1000001, reason: 'gid 也要一起交给下载模块');
+      final call = download.calls.single;
+      expect(call.position, 1);
+      expect(call.filename, '00000002.jpg');
+      expect(call.mtimeMs, 1);
+      expect(call.url, '/img/1000001/1');
+    });
+
+    test('位置越界在本地就被拒，不惊动下载模块', () async {
+      final download = _RecordingDownloadService();
+      final reader = ReaderService(_UnusedLibraryService(), download);
+
+      final result = await reader.pageBytes(_detail([0, 1]), 2);
+
+      expect(result.isError, isTrue);
+      expect(result.error, isA<ValidationException>());
+      expect(download.calls, isEmpty);
+    });
+  });
+
   group('gapAt', () {
     test('文件编号与位置一致时没有可提示的东西', () {
       final detail = _detail([0, 1, 2]);
@@ -67,6 +146,71 @@ void main() {
       expect(ReaderService.gapAt(detail, 2), isNull);
     });
   });
+}
+
+/// 真的下载 service，只是把文件系统换成内存实现：断网阅读的链路要真的走一遍
+/// 「写清单 → 重建详情 → 按位置读页」，用假的 service 就把要验的东西验掉了。
+DownloadService _realDownloadService(MemoryFileStore store) => DownloadService(
+      DownloadRepository(
+        DownloadFileLocalDatasource(store),
+        _RecordingRemote(),
+      ),
+    );
+
+/// 假远端：按路径返回可判定的字节。
+class _RecordingRemote implements DownloadRemoteDatasource {
+  @override
+  Future<Result<Uint8List>> fetchPageBytes(
+    String path, {
+    CancelToken? cancelToken,
+  }) async {
+    if (path.isEmpty) {
+      return Result.error(const ParsingException(message: '该页没有可用的图片地址'));
+    }
+    return Result.success(Uint8List.fromList(utf8.encode('img:$path')));
+  }
+}
+
+/// 服务器不可达的 library service。
+class _OfflineLibraryService implements LibraryService {
+  @override
+  Future<Result<GalleryDetailVo>> galleryDetail(
+    int gid, {
+    CancelToken? cancelToken,
+  }) async =>
+      Result.error(const RemoteException(message: '连接超时'));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} 不该被这个用例调用');
+}
+
+/// 记录被请求了哪一页的假下载 service。
+class _RecordingDownloadService implements DownloadService {
+  final List<DownloadPageDto> calls = [];
+  final List<int> gids = [];
+
+  @override
+  Future<Result<Uint8List>> pageBytes(
+    int gid,
+    DownloadPageDto page, {
+    CancelToken? cancelToken,
+  }) async {
+    gids.add(gid);
+    calls.add(page);
+    return Result.success(Uint8List.fromList(const [1, 2, 3]));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} 不该被阅读器调用');
+}
+
+/// 阅读器的取图路径不经过 library service（详情除外），测试里用它占位。
+class _UnusedLibraryService implements LibraryService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} 不该被这个用例调用');
 }
 
 GalleryDetailVo _detail(List<int> pageIndices) {

@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 
-/// 两个根目的地（图库 / 设置）的底部导航。
+/// 三个根目的地（图库 / 下载 / 设置）的底部导航。
 ///
 /// 只有这两个页面走底部导航；详情页和阅读器是 push 上来的，会盖住导航栏
 /// ——这正是阅读时想要的行为，也让返回手势符合直觉。
@@ -28,6 +28,10 @@ class AppShellView extends StatelessWidget {
           FBottomNavigationBarItem(
             icon: Icon(FLucideIcons.images),
             label: Text('图库'),
+          ),
+          FBottomNavigationBarItem(
+            icon: Icon(FLucideIcons.folderDown),
+            label: Text('下载'),
           ),
           FBottomNavigationBarItem(
             icon: Icon(FLucideIcons.settings),

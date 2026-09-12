@@ -41,6 +41,11 @@ dependencies:
   # cookies and this is unused.
   shared_preferences: ^2.5.5
 
+  # 应用私有目录。缩略图缓存放可回收的 cache 目录，离线下载放持久的 support 目录
+  # ——没有它就只能往系统临时目录写，而「下载好的东西被系统清掉」是无法向用户解释
+  # 的。Web 上不可用，相关功能自动降级（见 core/service/file_store.dart）。
+  path_provider: ^2.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

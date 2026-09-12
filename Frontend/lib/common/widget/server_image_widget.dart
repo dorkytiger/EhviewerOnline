@@ -6,6 +6,7 @@ import 'package:forui/forui.dart';
 
 import '../config/app_config.dart';
 import '../../core/service/dio_provider.dart';
+import '../../core/service/thumbnail_cache.dart';
 import '../../core/util/result_util.dart';
 
 /// 需要会话才能取到的服务端图片。
@@ -67,7 +68,10 @@ class _ServerImageState extends ConsumerState<ServerImage> {
     final url = api.resolve(widget.path);
     if (url == _forUrl) return;
     _forUrl = url;
-    _future = api.getBytes(url);
+    // 走缩略图缓存（内存 → 磁盘 → 网络）而不是直接回源：网格里滚回去一次就重下
+    // 一次、重启后全量重下，走远程域名时这笔流量很可观。缓存开关与清理在设置页，
+    // 这里不需要知道细节。
+    _future = ref.read(thumbnailCacheProvider).load(url);
   }
 
   @override

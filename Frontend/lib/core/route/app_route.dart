@@ -7,6 +7,8 @@ import '../../common/config/app_config.dart';
 import '../../feature/auth/model/state/auth_state.dart';
 import '../../feature/auth/ui/provider/auth_provider.dart';
 import '../../feature/auth/ui/view/login_view.dart';
+import '../../feature/download/ui/view/download_view.dart';
+import '../../feature/download/ui/view/gallery_download_view.dart';
 import '../../feature/library/ui/view/gallery_detail_view.dart';
 import '../../feature/library/ui/view/library_view.dart';
 import '../../feature/main/ui/view/app_shell_view.dart';
@@ -52,6 +54,14 @@ GoRouter createRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/downloads',
+                builder: (context, state) => const DownloadView(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/settings',
                 builder: (context, state) => const SettingView(),
               ),
@@ -66,6 +76,14 @@ GoRouter createRouter(Ref ref) {
           gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
         ),
         routes: [
+          // 下载页是详情页的子路由（不是底部导航的一个目的地）：它是「针对这一本
+          // 画廊」的操作，返回手势应该回到详情页。
+          GoRoute(
+            path: 'download',
+            builder: (context, state) => GalleryDownloadView(
+              gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
+            ),
+          ),
           GoRoute(
             path: 'read',
             builder: (context, state) => ReaderView(

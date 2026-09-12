@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:ehviewer_online/core/exception/global_exception.dart';
 import 'package:ehviewer_online/core/service/api_client.dart';
 import 'package:ehviewer_online/core/service/dio_provider.dart';
+import 'package:ehviewer_online/core/service/file_store.dart';
 import 'package:ehviewer_online/core/service/preferences_provider.dart';
 import 'package:ehviewer_online/core/service/session_store.dart';
 import 'package:ehviewer_online/core/util/format_util.dart';
@@ -28,6 +29,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'support/memory_file_store.dart';
 
 /// 编码了「决定」的那些部分的 widget 测试，外加格式化函数。
 ///
@@ -193,6 +196,10 @@ void main() {
             apiClientProvider.overrideWithValue(
               _StubApiClient(prefs, authenticated: true),
             ),
+            // 阅读器现在会先问下载模块「本机有没有这一页」，而那个模块要碰
+            // `path_provider`。真实平台通道在 `testWidgets` 的假时钟里永远不会返回，
+            // 换成内存实现之后这条测试仍然只关心 UI 决策。
+            fileStoreProvider.overrideWithValue(MemoryFileStore()),
             readerDetailProvider(gid).overrideWith((ref) async => detail),
           ],
           child: _withForui(const ReaderView(gid: gid)),

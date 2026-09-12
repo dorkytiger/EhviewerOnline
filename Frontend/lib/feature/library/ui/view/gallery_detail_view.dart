@@ -61,10 +61,14 @@ class _DetailBody extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 720 以上并排，以下堆叠：手机拿到的是封面条 + 文字，桌面窗口拿到的是
-        // 海报式布局。
+        // 720 以上并排（海报式），以下分两段：封面 + 标题一行，其余信息**整宽**排在
+        // 下面。
+        //
+        // 之前窄屏也把整块信息塞在封面右边，320 宽的手机上那一列只剩 118 px：标题
+        // 两三个字一换行，「元数据来源」这类键值对更是每行一个字，整块看起来像坏了。
+        // 事实（页数、分类、标签…）本来就不需要跟封面并排，给它们整行才是对的。
         final wide = constraints.maxWidth >= _wideBreakpoint;
-        final coverWidth = wide ? _coverWide : _coverNarrow;
+        final coverWidth = wide ? _coverWide : _coverWidthFor(constraints.maxWidth);
 
         return SingleChildScrollView(
           padding: EdgeInsets.all(AppSpacing.xl),
@@ -74,14 +78,29 @@ class _DetailBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: coverWidth, child: _Cover(gallery: gallery)),
-                      SizedBox(width: AppSpacing.xl),
-                      Expanded(child: _Header(gallery: gallery, detail: detail)),
-                    ],
-                  ),
+                  if (wide)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: coverWidth, child: _Cover(gallery: gallery)),
+                        SizedBox(width: AppSpacing.xl),
+                        Expanded(child: _Header(gallery: gallery, detail: detail)),
+                      ],
+                    )
+                  else ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: coverWidth, child: _Cover(gallery: gallery)),
+                        SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _TitleBlock(gallery: gallery, compact: true),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: AppSpacing.lg),
+                    _FactsBlock(gallery: gallery),
+                  ],
                   SizedBox(height: AppSpacing.xl),
                   _Actions(
                     gallery: gallery,
@@ -115,8 +134,17 @@ const double _wideBreakpoint = 720;
 /// 宽布局下的封面宽度。
 const double _coverWide = 260;
 
-/// 窄布局下的封面宽度。
-const double _coverNarrow = 130;
+/// 窄布局下封面的宽度下限 / 上限。
+///
+/// 定值不行：320 宽的手机上 130 加间距会吃掉一半屏宽，留给标题的只有一百来像素。
+const double _coverNarrowMin = 88;
+const double _coverNarrowMax = 130;
+
+/// 窄布局下封面占可用宽度的比例。
+const double _coverNarrowRatio = 0.30;
+
+double _coverWidthFor(double available) =>
+    (available * _coverNarrowRatio).clamp(_coverNarrowMin, _coverNarrowMax);
 
 /// 正文最大宽度：再宽行就长得难以阅读。
 const double _contentMaxWidth = 1000;
@@ -153,6 +181,10 @@ class _Cover extends StatelessWidget {
   }
 }
 
+/// 宽布局下的右栏：标题 + 事实。
+///
+/// 窄屏不用它（见 [_DetailBody] 的说明），但两段内容与 [_TitleBlock] /
+/// [_FactsBlock] 完全同源，不存在「手机上一套、桌面上一套」的文案。
 class _Header extends StatelessWidget {
   const _Header({required this.gallery, required this.detail});
 
@@ -161,12 +193,41 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _TitleBlock(gallery: gallery),
+        SizedBox(height: AppSpacing.md),
+        _FactsBlock(gallery: gallery),
+      ],
+    );
+  }
+}
+
+/// 标题（原名 + 日文名）。窄屏时它与封面同排，所以只放标题。
+class _TitleBlock extends StatelessWidget {
+  const _TitleBlock({required this.gallery, this.compact = false});
+
+  final GalleryVo gallery;
+
+  /// 窄屏（封面与标题同排）用更小的标题字号。
+  ///
+  /// `body.xl2` 是 30 px 字号、行高倍数 2.25（一行占 67 px），在 320 宽的手机上
+  /// 剩下的那一百多像素里一行只放得下四个字，标题会撑成三行、把首屏顶掉一半。
+  /// 22 px 的 `body.xl` 同样醒目，却能把常见标题压到两行。
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = context.theme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(gallery.displayTitle, style: theme.typography.body.xl2),
+        Text(
+          gallery.displayTitle,
+          style: compact ? theme.typography.body.xl : theme.typography.body.xl2,
+        ),
         if (gallery.titleJpn.isNotEmpty && gallery.titleJpn != gallery.title) ...[
           SizedBox(height: AppSpacing.xs),
           Text(
@@ -176,7 +237,24 @@ class _Header extends StatelessWidget {
             ),
           ),
         ],
-        SizedBox(height: AppSpacing.md),
+      ],
+    );
+  }
+}
+
+/// 事实：页数/语言/评分/分类这类短标签，以及目录名推导出来的键值对。
+///
+/// 这些不需要挨着封面，窄屏上给它们整行宽度才读得下去。
+class _FactsBlock extends StatelessWidget {
+  const _FactsBlock({required this.gallery});
+
+  final GalleryVo gallery;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -243,6 +321,10 @@ class _Header extends StatelessWidget {
 }
 
 /// 阅读入口。有进度时变成「继续阅读」并直接跳到那一页。
+///
+/// 旁边的「下载」不在这里做任何下载逻辑，只是导航到下载页：跨 feature 只能走对方的
+/// service，而下载的状态（进度、续传、删除）全部归下载模块自己管，这里的按钮连它
+/// 有没有下载过都不需要知道。
 class _Actions extends StatelessWidget {
   const _Actions({required this.gallery, required this.resumePage});
 
@@ -255,23 +337,35 @@ class _Actions extends StatelessWidget {
     final canRead = gallery.isReadable;
     final target = page == null ? '/gallery/${gallery.gid}/read' : '/gallery/${gallery.gid}/read?page=$page';
 
-    return Row(
+    // 用 Wrap 而不是 Row：窄屏上「继续阅读（第 N 页）」加「下载」会超过一行。
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FButton(
-          onPress: canRead ? () => context.go(target) : null,
-          prefix: const Icon(FLucideIcons.bookOpen, size: AppIcon.sm),
-          child: Text(
-            page == null ? '开始阅读' : '继续阅读（第 ${page + 1} 页）',
-          ),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            FButton(
+              onPress: canRead ? () => context.go(target) : null,
+              prefix: const Icon(FLucideIcons.bookOpen, size: AppIcon.sm),
+              child: Text(
+                page == null ? '开始阅读' : '继续阅读（第 ${page + 1} 页）',
+              ),
+            ),
+            FButton(
+              variant: FButtonVariant.outline,
+              onPress: () => context.go('/gallery/${gallery.gid}/download'),
+              prefix: const Icon(FLucideIcons.download, size: AppIcon.sm),
+              child: const Text('下载'),
+            ),
+          ],
         ),
         if (!canRead) ...[
-          SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              gallery.onDisk ? '本地文件不可读（页数为 0）' : '目录尚未同步到服务器',
-              style: context.theme.typography.body.sm.copyWith(
-                color: context.theme.colors.mutedForeground,
-              ),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            gallery.onDisk ? '本地文件不可读（页数为 0）' : '目录尚未同步到服务器',
+            style: context.theme.typography.body.sm.copyWith(
+              color: context.theme.colors.mutedForeground,
             ),
           ),
         ],
@@ -447,10 +541,16 @@ class _Pill extends StatelessWidget {
         children: [
           Icon(icon, size: AppIcon.sm, color: theme.colors.secondaryForeground),
           SizedBox(width: AppSpacing.xs),
-          Text(
-            text,
-            style: theme.typography.body.xs.copyWith(
-              color: theme.colors.secondaryForeground,
+          // 胶囊不能自己撑破一行：Wrap 只在胶囊之间换行，单个胶囊比整行还宽时
+          // 会变成 RenderFlex 溢出（整块「崩掉」的那种）。省略号比黄色条纹诚实。
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.typography.body.xs.copyWith(
+                color: theme.colors.secondaryForeground,
+              ),
             ),
           ),
         ],

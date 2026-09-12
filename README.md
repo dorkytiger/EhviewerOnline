@@ -1,7 +1,8 @@
 # EhviewerOnline
 
 把一台机器上 **Syncthing 同步过来的 EhViewer 图库**变成一个只读的在线库：一个 Go
-服务端负责索引与出图，一个 Flutter 客户端负责浏览与阅读。
+服务端负责索引与出图，一个 Flutter 客户端负责浏览、阅读与离线下载：整本可以存到本机，
+阅读时优先读本地副本，服务器不可达时也能继续读已下载的画廊。
 
 ```
 Syncthing ──► <同步目录>/EhViewer
@@ -16,7 +17,7 @@ Syncthing ──► <同步目录>/EhViewer
 | 目录 | 是什么 | 文档 |
 | --- | --- | --- |
 | `Backend/` | Go 服务端。走目录树、解析 `.ehviewer`、只读导出的 SQLite 快照，索引后通过 HTTP 提供浏览与读图 | [`Backend/README.md`](Backend/README.md)（含**完整 HTTP 契约**） |
-| `Frontend/` | Flutter 客户端。同一个代码库跑 macOS / iOS / Android / Web | [`Frontend/AGENTS.md`](Frontend/AGENTS.md)（目录映射、forui 约定、平台注意事项） |
+| `Frontend/` | Flutter 客户端。同一个代码库跑 macOS / iOS / Android / Web | [`Frontend/AGENTS.md`](Frontend/AGENTS.md)（目录映射、forui 约定、平台注意事项、缓存与下载的取舍） |
 
 ## 快速开始
 
