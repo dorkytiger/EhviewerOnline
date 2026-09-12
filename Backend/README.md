@@ -95,7 +95,7 @@ docker compose up -d
 publishes it on `127.0.0.1:8080` so the frp client on the same host can reach
 it without exposing it directly.
 
-### Two settings that will bite if ignored
+### Three settings that will bite if ignored
 
 **`EHW_UID` / `EHW_GID` must match the owner of the synced files.** The
 distroless image runs as uid 65532, but a Syncthing-managed tree is usually
@@ -107,6 +107,32 @@ because "no galleries found" is a legitimate state.
 guarantee that the service cannot write into the tree Syncthing manages, on top
 of the application never trying to. Do not relax it to debug something; if the
 service needed to write there, that would be the bug.
+
+**The data volume must be writable by `EHW_UID`, and that is why the image
+ships `/var/lib/ehviewer-webd` as `0777`.** Docker initialises a fresh named
+volume from the image's directory *including its ownership*, so a plain `0755`
+directory owned by uid 65532 locks out any other `user:`. The failure is noisy
+but the recovery is not obvious:
+
+```
+error: auth: write key: open /var/lib/ehviewer-webd/session.key: permission denied
+```
+
+It also cannot be fixed by hand: the service cannot write, so the volume stays
+empty, and **every container recreation re-initialises it again**, discarding
+any `chown` you applied. The permission has to be right in the image, which is
+what the `--chmod=0777` on the `COPY` in `Dockerfile` is for. It does not widen
+the attack surface: one process per container, the volume is mounted only there,
+the root filesystem is read-only, capabilities are dropped, and the session key
+itself is still written `0600`.
+
+If you deployed a build from before that fix and the volume is already owned by
+65532, throw the volume away rather than chowning it — everything in it is
+disposable (session key, thumbnail cache, index):
+
+```sh
+docker compose down -v && docker compose up -d --build
+```
 
 ### Why distroless
 

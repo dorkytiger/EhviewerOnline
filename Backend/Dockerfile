@@ -31,6 +31,9 @@ RUN go build \
       -o /out/ehviewer-webd \
       ./cmd/ehviewer-webd
 
+# 供 runtime 阶段拷一个数据目录进去。目录本体不能是空的拷贝源，所以在这里建。
+RUN mkdir -p /out/data
+
 # --- runtime ---------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 
@@ -38,6 +41,25 @@ COPY --from=build /out/ehviewer-webd /usr/local/bin/ehviewer-webd
 
 # The service writes only here: the index, thumbnail cache and session key.
 # The synced tree is mounted read-only and is never written to.
+#
+# **这个目录必须对任意 uid 可写，07​77 是刻意的。**
+#
+# 它是 named volume 的挂载点，而 Docker 会用镜像里这个目录的属主与权限去初始化
+# 一个**空的**卷。运行时的 `user:`（EHW_UID，用来匹配同步目录的属主，见文末）
+# 几乎不可能等于镜像里的 uid，所以默认的 0755/65532 会让服务死在启动阶段：
+#
+#   error: auth: write key: open /var/lib/ehviewer-webd/session.key: permission denied
+#
+# 更麻烦的是它不会自愈：服务写不进去 → 卷始终是空的 → **每次重建容器都被重新
+# 初始化一次**，连手工 chown 都会被覆盖。所以权限必须在镜像里就正确。
+#
+# 0777 在这里不放大攻击面：镜像里只有一个进程，这个卷只挂给这一个容器，rootfs
+# 只读、capabilities 清空、no-new-privileges；会话密钥本身仍由程序以 0600 写入。
+COPY --from=build --chmod=0777 /out/data /var/lib/ehviewer-webd
+
+# 注意顺序：`WORKDIR` 在目录不存在时**会创建它**，而创建出来的属主是当前 USER
+# （distroless 的 65532），会把上面精心设置的权限覆盖掉。所以数据目录在上面用
+# COPY 建好，这里只负责切换工作目录。
 WORKDIR /var/lib/ehviewer-webd
 
 # 65532 is distroless's nonroot user.
