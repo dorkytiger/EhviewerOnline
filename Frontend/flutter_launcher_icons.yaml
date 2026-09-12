@@ -1,0 +1,42 @@
+# flutter_launcher_icons 的配置。
+#
+# 源图由 `test/tools/render_app_icon.dart` 用 `dart:ui` 画出来（设计唯一来源），
+# 这个包只负责铺平台资源：Android 自适应 XML + 五档前景、iOS 15 张、macOS 7 张、
+# Windows .ico、web 192/512 与 maskable。
+#
+# 改图标：先改 `test/tools/app_icon_art.dart`，然后
+#   flutter test test/tools/render_app_icon.dart && dart run flutter_launcher_icons
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+
+  # 满幅不透明方图：iOS、Android 旧图标、web、Windows 都用它。
+  image_path: "assets/icon/app_icon.png"
+
+  # Android 自适应图标。前景图**已经**把图形缩进到 66/108 的安全圆内，所以 inset
+  # 必须是 0——包里的默认值是 16，会再缩一圈，图形会明显偏小。
+  adaptive_icon_background: "#009688"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  adaptive_icon_foreground_inset: 0
+
+  # iOS：1024 带透明像素会被 App Store 拒。源图本来就是不透明的，这里再兜一层。
+  remove_alpha_ios: true
+  background_color_ios: "#009688"
+
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    # 顺手把 web/manifest.json 里 Flutter 模板留下的蓝色改成主题色。
+    background_color: "#009688"
+    theme_color: "#009688"
+
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
+
+  # macOS 系统不裁图标也不加效果：留白、圆角、投影都画在源图里。
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon_macos.png"

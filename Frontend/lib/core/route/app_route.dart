@@ -20,6 +20,11 @@ import '../../feature/setting/ui/view/setting_view.dart';
 /// 重定向由 [authProvider] 驱动：任何请求拿到 401 都会把人送到登录页，而不是
 /// 停在一个静默显示空内容的页面上。会话还在校验时（[AuthStatus.checking]）
 /// 保持原地不动——每次冷启动都闪一下登录页比短暂停留更糟。
+///
+/// **进入详情 / 下载 / 阅读器一律用 `push`，不要用 `go`。** 这三条路由不在
+/// [StatefulShellRoute] 里，`go` 会把整个栈换成「只有这一页」——下面什么都没有，
+/// 于是 Android 的侧边滑动返回（系统返回手势）直接把应用退到桌面，iOS 的滑动返回
+/// 也一起失效。`go` 只留给真正的「换掉当前位置」：登录成功回图库、兜底页回首页。
 GoRouter createRouter(Ref ref) {
   return GoRouter(
     initialLocation: '/',
@@ -69,29 +74,29 @@ GoRouter createRouter(Ref ref) {
           ),
         ],
       ),
-      // 详情与阅读器在 shell 之外，这样它们会盖住底部导航栏——阅读时就该如此。
+      // 详情、下载页、阅读器在 shell 之外，这样它们会盖住底部导航栏——阅读时就该
+      // 如此。三个页面**平级**挂在这里，而不是互相嵌套的子路由：用 `push` 进入一个
+      // 子路由时，go_router 会把它的父路由页面也一起压栈，于是从阅读器返回会先回到
+      // 一个一模一样的详情页（看起来像「返回没反应」）。平级之后一次 push 只加一个
+      // 页面。
       GoRoute(
         path: '/gallery/:gid',
         builder: (context, state) => GalleryDetailView(
           gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
         ),
-        routes: [
-          // 下载页是详情页的子路由（不是底部导航的一个目的地）：它是「针对这一本
-          // 画廊」的操作，返回手势应该回到详情页。
-          GoRoute(
-            path: 'download',
-            builder: (context, state) => GalleryDownloadView(
-              gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
-            ),
-          ),
-          GoRoute(
-            path: 'read',
-            builder: (context, state) => ReaderView(
-              gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
-              initialPage: int.tryParse(state.uri.queryParameters['page'] ?? '') ?? 0,
-            ),
-          ),
-        ],
+      ),
+      GoRoute(
+        path: '/gallery/:gid/download',
+        builder: (context, state) => GalleryDownloadView(
+          gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: '/gallery/:gid/read',
+        builder: (context, state) => ReaderView(
+          gid: int.tryParse(state.pathParameters['gid'] ?? '') ?? 0,
+          initialPage: int.tryParse(state.uri.queryParameters['page'] ?? '') ?? 0,
+        ),
       ),
     ],
     errorBuilder: (context, state) => _NotFoundView(location: state.uri.toString()),

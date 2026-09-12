@@ -108,7 +108,8 @@ class _Body extends ConsumerWidget {
           DownloadedGalleryTile(
             item: item,
             // 直接进阅读器：详情页要问服务器，服务器不可达时那条路是死的。
-            onOpen: () => context.go('/gallery/${item.gid}/read'),
+            // push 让下面留着「下载」这一页，系统返回手势回到这里而不是退出应用。
+            onOpen: () => context.push('/gallery/${item.gid}/read'),
             onDelete: () => _confirmDeleteOne(context, ref, item),
           ),
           SizedBox(height: AppSpacing.md),

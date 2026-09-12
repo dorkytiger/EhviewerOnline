@@ -28,6 +28,11 @@ Thumbs.db
 .idea/
 *.iml
 
+# --- 工具产物 ---
+# 图标预览（test/tools/render_app_icon.dart 生成）：用来挑方向的一次性图片，
+# 真正的资源是铺到各平台目录里的那些，预览不必入库。
+Frontend/test/tools/out/
+
 # --- 后端构建产物 ---
 # 镜像构建在容器里做（CGO_ENABLED=0 静态二进制），本地产物不该入库。
 Backend/ehviewer-webd

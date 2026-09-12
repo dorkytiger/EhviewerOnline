@@ -114,6 +114,16 @@ reader   ──► library（service：取详情）, download（service：取页
   - `ios/Runner/Info.plist` 必须保留 `NSLocalNetworkUsageDescription`：iOS 14+ 真机连**局域网地址**（192.168.x.x）要用户授权，没有这个说明字符串系统不会弹框、连接直接失败。回环与公网隧道不需要它。
   - iOS **不需要** ATS 例外（`NSAllowsArbitraryLoads` / `NSAllowsLocalNetworking`）：Flutter 那条「默认禁用不安全 HTTP」的策略只作用于平台原生 socket，官方文档明确写了 socket 归 Dart/Flutter 所有时不施加策略；本项目用 dio 的默认 dart:io 适配器。别照抄网上加 `NSAllowsArbitraryLoads` 的教程。
   - **模拟器**用 `http://127.0.0.1:8080` 连宿主机后端（模拟器共享 Mac 的网络栈，回环即 Mac 回环）；**真机**才有局域网地址、权限与端口发布的问题。
+- **应用图标：设计在代码里，铺图交给 `flutter_launcher_icons`**。
+  - 图形定义在 `test/tools/app_icon_art.dart`（概念、调色板、各平台的圆角/留白/安全区规则），源图由 `test/tools/render_app_icon.dart` 用 `dart:ui` 画出来落到 `assets/icon/`：`app_icon.png`（满幅不透明，iOS/Android 旧图标/web/Windows）、`app_icon_foreground.png`（Android 自适应前景，图形已缩进 66/108 安全圆）、`app_icon_macos.png`（留白 + 圆角 + 投影，macOS 系统不裁图标）。
+  - 改图标的完整流程：改 `app_icon_art.dart` → `flutter test test/tools/render_app_icon.dart` → `dart run flutter_launcher_icons`（配置 `flutter_launcher_icons.yaml`）。两个工具文件都**故意不以 `_test.dart` 结尾**，`flutter test` 不会顺手跑它们；预览输出 `test/tools/out/` 已忽略，源图 `assets/icon/` 要提交。
+  - `adaptive_icon_foreground_inset` 必须是 **0**：前景图自己已经留好安全区，包里默认的 16 会再缩一圈，图形会明显偏小。
+  - ⚠️ **每次跑完 `flutter_launcher_icons` 都要看一眼 `git diff ios/Runner.xcodeproj/project.pbxproj`**：0.14.4 会把 `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` 的值从 `YES` 改成 `AppIcon`（那个键只接受布尔，纯属误改；实测不会让构建失败，但必须改回来）。它也会把 iOS 的 `Contents.json` 压成一行，那是它自己的格式，别手工排版。
+  - 还没做的：Android 13 的 monochrome 主题图标（`adaptive_icon_monochrome`）需要单独的**剪影**设计——把现在的图形染成白色会丢掉叠卡的层次，所以不是加个 target 就完事；iOS 18 的深色/着色变体同理。
+- **详情 / 下载 / 阅读器三条路由在 shell 之外，进入它们一律用 `push`，不要用 `go`**：`go` 会把整个栈换成「只有这一页」，下面什么都没有——Android 的侧边滑动返回（系统返回手势）于是把应用**退到桌面**，iOS 的滑动返回也一起失效。`go` 只留给真正的「换掉当前位置」：登录成功回图库、兜底页回首页、阅读器 `_back()` 在没有上一页时回详情。
+  - 这三条路由必须**平级**（`/gallery/:gid`、`/gallery/:gid/read`、`/gallery/:gid/download`），不能把后两条写成 `:gid` 的子路由：`push` 一个子路由时 go_router 会把父路由页面一起压栈，从阅读器返回会先回到一个一模一样的详情页（看起来像「返回没反应」）。
+  - 回归测试在 `test/navigation_stack_test.dart`：它既查路由表（push 之后 `canPop()` 必须为真、pop 一次回到上一层），也**走真实的调用点**（点画廊磁贴、点下载页卡片），因为 `go`/`push` 的差别只有调用点知道。
+  - 那个测试还要关掉 Riverpod 的自动重试（`ProviderContainer(retry: (_, __) => null)`）并给 `fileStoreProvider` 塞内存实现：桩服务端的详情请求会失败，自动重试会留下定时器让 `pumpAndSettle` 报 pending timer。
 - **窄屏布局：详情页只有一个断点（720）**。≥720 是海报式并排（封面 260 + 右栏标题与事实，见 `_Header`）；<720 分两段——封面 + 标题一行，事实（胶囊标签、键值对）**整宽**排在下面。
   - 封面宽度**按可用宽度算**（`_coverWidthFor`，比例 0.30、夹在 88–130），不要写死 130：320 宽的手机上定值加间距会吃掉一半屏宽，标题列只剩 118 px，`_KeyValue` 的值只剩 40 px，整块看起来像坏了（真机截图报过这个 bug，回归测试在 `test/gallery_detail_layout_test.dart`）。
   - 同排的标题用 `body.xl`（22 px）而不是 `body.xl2`（30 px）：`xl2` 的行高倍数是 2.25，一行占 67 px，窄列里一行只放得下四个字。

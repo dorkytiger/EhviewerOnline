@@ -346,7 +346,7 @@ class _Actions extends StatelessWidget {
           runSpacing: AppSpacing.sm,
           children: [
             FButton(
-              onPress: canRead ? () => context.go(target) : null,
+              onPress: canRead ? () => context.push(target) : null,
               prefix: const Icon(FLucideIcons.bookOpen, size: AppIcon.sm),
               child: Text(
                 page == null ? '开始阅读' : '继续阅读（第 ${page + 1} 页）',
@@ -354,7 +354,7 @@ class _Actions extends StatelessWidget {
             ),
             FButton(
               variant: FButtonVariant.outline,
-              onPress: () => context.go('/gallery/${gallery.gid}/download'),
+              onPress: () => context.push('/gallery/${gallery.gid}/download'),
               prefix: const Icon(FLucideIcons.download, size: AppIcon.sm),
               child: const Text('下载'),
             ),

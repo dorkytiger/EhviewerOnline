@@ -52,6 +52,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   # A real HTTP server in-process, for contract tests against the client.
   http: ^1.5.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true

@@ -109,7 +109,8 @@ class _LibraryViewState extends ConsumerState<LibraryView> {
                   : _GalleryGrid(
                       state: state,
                       scroll: _scroll,
-                      onTapGallery: (gid) => context.go('/gallery/$gid'),
+                      // push 而不是 go：详情页下面必须留着图库，否则系统返回手势会退出应用。
+                      onTapGallery: (gid) => context.push('/gallery/$gid'),
                     ),
             ),
           ),
