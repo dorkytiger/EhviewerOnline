@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:ehviewer_online/common/config/app_theme.dart';
 import 'package:ehviewer_online/core/exception/global_exception.dart';
 import 'package:ehviewer_online/core/route/app_route.dart';
 import 'package:ehviewer_online/core/service/api_client.dart';
@@ -65,7 +66,7 @@ void main() {
           theme: ThemeData(useMaterial3: true),
           routerConfig: router,
           builder: (context, child) => FTheme(
-            data: FTheme.neutral.light.touch,
+            data: buildBrandThemes(touch: true).$1,
             child: FToaster(child: child ?? const SizedBox.shrink()),
           ),
         ),

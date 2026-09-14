@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:ehviewer_online/common/config/app_theme.dart';
 import 'package:ehviewer_online/core/exception/global_exception.dart';
 import 'package:ehviewer_online/core/service/api_client.dart';
 import 'package:ehviewer_online/core/service/dio_provider.dart';
@@ -365,7 +366,9 @@ Widget _withForui(Widget child) {
   return MaterialApp(
     theme: ThemeData(useMaterial3: true),
     builder: (context, navigator) => FTheme(
-      data: FTheme.neutral.light.touch,
+      // 用**应用真实的那一份**主题：测试自造一套的话，主题里的改动（比如 FScaffold
+      // 的 childPadding 归零）就永远测不到。touch 固定为 true，免得结果随宿主平台变。
+      data: buildBrandThemes(touch: true).$1,
       child: FToaster(child: navigator ?? const SizedBox.shrink()),
     ),
     home: child,

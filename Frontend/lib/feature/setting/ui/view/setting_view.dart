@@ -35,8 +35,8 @@ class SettingView extends ConsumerWidget {
     final meta = ref.watch(serverMetaProvider);
 
     return FScaffold(
-      // 留白由列表自己控制：整页统一 padding 会让卡片贴边或双重留白。
-      childPad: false,
+      // 留白由列表自己控制：整页统一 padding 会让卡片贴边或双重留白（FScaffold
+      // 默认那层左右 12 px 已在品牌主题里归零，见 app_theme.dart）。
       header: FHeader(
         title: const Text('设置'),
         suffixes: [

@@ -88,7 +88,11 @@ reader   ──► library（service：取详情）, download（service：取页
 - **`MaterialApp.router` 例外，且必须来自 `material_ui`**：Flutter 3.44 起 Material 已从 SDK 独立成 `package:material_ui`，forui 0.26 也建立在它之上，而 `package:flutter/material.dart` 是**另一套实现**——两者的 `ThemeData` 互不相容，混用是类型错误。
   所以 `lib/main.dart` 用 `material_ui` 的 `MaterialApp.router` + `toApproximateMaterialTheme()`（主题单一来源），`FTheme` / `FToaster` / `FTooltipGroup` 注入在 `builder` 里。**不要**改成 `package:flutter/material.dart` 的 `MaterialApp`，也不要改成纯 forui 启动器（forui 不提供路由宿主）。
   参考项目 TeleBook 用的是 forui **0.24.3**（那时还 import `flutter/material`），那套写法在本项目**无法编译**，不要照抄。
-- **品牌色只允许**在 `lib/main.dart` 的 `_brandTheme` 里集中定义。
+- **品牌色只允许**在 `lib/common/config/app_theme.dart` 的 `_brandTheme` 里集中定义（`buildBrandThemes()`，`main.dart` 只是调用方）。主题测试在 `test/app_theme_test.dart`；widget 测试的夹具请用 `buildBrandThemes(touch: true).$1`，**不要**再各造一套 `FTheme.neutral.light.touch`——主题里改了什么，自造的那套永远测不到（childPadding 那次就是这么漏出去的）。
+- **`FScaffold` 默认会给内容左右各加 12 px，已经在品牌主题里归零**（`scaffoldStyle.childPadding = EdgeInsets.zero`）。所以：
+  - **不要**再写 `childPad: false`，也不需要写 `childPad: true`；
+  - 每个页面自己控制留白（列表用 `theme.style.pagePadding`，详情页用 `AppSpacing.xl`）；
+  - 回归测试 `test/app_theme_test.dart` 量了「内容左边缘 = 0」，`test/gallery_detail_layout_test.dart` 量了详情页的精确偏移（窄屏 24、宽屏 308）——加回来就会红。
 - **所有 `showFDialog` 的内容都必须走 `FDialogContent`**：forui 的 `FDialog` 只管定位/动画/遮罩，**内容边距是每个 builder 自己的事**——忘了就顶到弹窗边框上（`confirmDialog` 曾经就是这样，三个入口全中）。新增弹窗时照抄 `common/widget/{confirm_dialog,server_address_dialog}.dart` 的写法，不要再自己排一份 Column。
 - **通用组件放 `lib/common/widget/`**：`CustomErrorWidget`（带 `onRetry`）、`CustomEmptyWidget`、`confirmDialog`（危险操作二次确认，契约测试在 `test/confirm_dialog_test.dart`）、`FSheetContent`（**面板背景由它画**，forui 的 `FSheet` 只负责定位/动画/拖拽）、`ServerImage`、`FDialogContent`（`FDialog` 不管内容边距，由 builder 提供）、`showServerAddressDialog`。优先复用，不要重写。
 - **服务器地址的编辑弹窗在 `common/widget/server_address_dialog.dart`**，**两个入口共用**：设置页，以及**登录页**。后者不是可选功能——未登录时路由把设置页挡在外面，默认地址不对就彻底卡死，登录页上那个「修改」是唯一的自救出口。保存与「地址变了就清本地会话」这条不变式在 `core/service/server_address.dart`，不在任何 feature 里。

@@ -14,9 +14,8 @@ class AppShellView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FScaffold(
-      // 子页面自己决定留白：图库是列表、设置是分区块卡片，统一加 padding
-      // 会让两边都错。
-      childPad: false,
+      // 留白由页面自己控制（图库是列表、设置是分区块卡片，统一加 padding 会让两边
+      // 都错），FScaffold 默认那层左右 12 px 已在品牌主题里归零，见 app_theme.dart。
       footer: FBottomNavigationBar(
         index: navigationShell.currentIndex,
         onChange: (index) => navigationShell.goBranch(

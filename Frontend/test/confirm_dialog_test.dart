@@ -1,3 +1,4 @@
+import 'package:ehviewer_online/common/config/app_theme.dart';
 import 'package:ehviewer_online/common/config/app_config.dart';
 import 'package:ehviewer_online/common/widget/confirm_dialog.dart';
 import 'package:ehviewer_online/common/widget/f_dialog_content.dart';
@@ -16,7 +17,7 @@ void main() {
       MaterialApp(
         theme: ThemeData(useMaterial3: true),
         builder: (context, navigator) => FTheme(
-          data: FTheme.neutral.light.touch,
+          data: buildBrandThemes(touch: true).$1,
           child: FToaster(child: navigator ?? const SizedBox.shrink()),
         ),
         home: FScaffold(

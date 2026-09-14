@@ -1,3 +1,4 @@
+import 'package:ehviewer_online/common/config/app_theme.dart';
 import 'package:ehviewer_online/core/exception/global_exception.dart';
 import 'package:ehviewer_online/core/util/result_util.dart';
 import 'package:ehviewer_online/feature/download/datasource/runtime/download_task_runtime.dart';
@@ -252,7 +253,7 @@ Widget _wrapPage(
     child: MaterialApp(
       theme: ThemeData(useMaterial3: true),
       builder: (context, navigator) => FTheme(
-        data: FTheme.neutral.light.touch,
+        data: buildBrandThemes(touch: true).$1,
         child: FToaster(child: navigator ?? const SizedBox.shrink()),
       ),
       home: GalleryDownloadView(gid: detail.gallery.gid),
@@ -276,7 +277,7 @@ Widget _wrap(DownloadService service) {
     child: MaterialApp(
       theme: ThemeData(useMaterial3: true),
       builder: (context, navigator) => FTheme(
-        data: FTheme.neutral.light.touch,
+        data: buildBrandThemes(touch: true).$1,
         child: FToaster(child: navigator ?? const SizedBox.shrink()),
       ),
       home: const DownloadView(),

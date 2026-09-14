@@ -128,8 +128,7 @@ class _ReaderViewState extends ConsumerState<ReaderView> {
         _saveProgress(current);
 
         return FScaffold(
-          childPad: false,
-          header: _chromeVisible ? _header(_title(value, current, total), prefs: prefs) : null,
+              header: _chromeVisible ? _header(_title(value, current, total), prefs: prefs) : null,
           footer: _chromeVisible
               ? _ControlBar(
                   current: current,

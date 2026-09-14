@@ -1,3 +1,5 @@
+import 'package:ehviewer_online/common/config/app_theme.dart';
+import 'package:ehviewer_online/common/config/app_config.dart';
 import 'package:ehviewer_online/core/service/preferences_provider.dart';
 import 'package:ehviewer_online/feature/library/enum/availability.dart';
 import 'package:ehviewer_online/feature/library/enum/meta_source.dart';
@@ -38,7 +40,7 @@ void main() {
         child: MaterialApp(
           theme: ThemeData(useMaterial3: true),
           builder: (context, navigator) => FTheme(
-            data: FTheme.neutral.light.touch,
+            data: buildBrandThemes(touch: true).$1,
             child: FToaster(child: navigator ?? const SizedBox.shrink()),
           ),
           home: const GalleryDetailView(gid: _gid),
@@ -70,8 +72,12 @@ void main() {
         reason: '标题不该撑成三行以上（30 px 字号那版会到 200+ px）',
       );
 
-      // 事实整宽排在封面下方：标签左边缘贴近内容区左边，而不是挤在封面右边。
-      expect(tester.getRect(find.text('元数据来源')).left, lessThan(60));
+      // 事实整宽排在封面下方，左边缘**正好**是页面自己的留白。
+      //
+      // 这里用精确值而不是「小于某个数」：forui 的 FScaffold 默认会再给内容左右各
+      // 12 px（`pagePadding` 的横向部分），叠在页面留白外面就是两边各一条多余的边
+      // ——这条断言会立刻抓到它回来（36 而不是 24）。
+      expect(tester.getRect(find.text('元数据来源')).left, AppSpacing.xl);
 
       // 两个入口都在：窄屏上「下载」不能被挤掉。
       expect(find.widgetWithText(FButton, '开始阅读'), findsOneWidget);
@@ -84,8 +90,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
 
-    // 标题与事实都在右栏：左边缘在封面（260 + 间距）之后。
-    expect(tester.getRect(find.text('元数据来源')).left, greaterThan(300));
+    // 标题与事实都在右栏：左边缘 = 页面留白 + 封面宽 + 间距 = 24 + 260 + 24。
+    expect(tester.getRect(find.text('元数据来源')).left, AppSpacing.xl * 2 + 260);
     expect(find.widgetWithText(FButton, '下载'), findsOneWidget);
   });
 }
